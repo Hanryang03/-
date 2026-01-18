@@ -3,224 +3,416 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>스페이스 디펜더</title>
+    <title>아쿠아 리서전스 (Aqua Resurgence)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: #0f0f1a; /* 우주 색상 */
-            overflow: hidden; /* 스크롤 방지 */
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            touch-action: none; /* 모바일에서 더블탭 확대 방지 */
-            user-select: none;
-        }
-
-        #gameCanvas {
-            display: block;
-        }
-
-        /* UI 오버레이 (점수, 게임오버 등) */
-        #uiLayer {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none; /* 캔버스 클릭 통과 */
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-        }
-
-        .score-board {
-            padding: 20px;
-            color: white;
-            font-size: 24px;
-            font-weight: bold;
-            text-shadow: 0 0 10px #00ffff;
-        }
-
-        /* 게임 시작/종료 모달 */
-        #modal {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.85);
-            padding: 40px;
-            border-radius: 15px;
-            text-align: center;
-            border: 2px solid #00ffff;
-            box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
-            pointer-events: auto;
-            min-width: 280px;
-        }
-
-        h1 {
-            color: #00ffff;
-            margin: 0 0 10px 0;
-            font-size: 32px;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-        }
-
-        p {
-            color: #ccc;
-            margin: 10px 0 30px 0;
-            line-height: 1.5;
-        }
-
-        button {
-            background: linear-gradient(45deg, #00ffff, #0088ff);
-            border: none;
-            padding: 15px 40px;
-            color: white;
-            font-size: 20px;
-            font-weight: bold;
-            border-radius: 30px;
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-            text-transform: uppercase;
-        }
-
-        button:hover {
-            transform: scale(1.05);
-            box-shadow: 0 0 15px #00ffff;
-        }
-
-        button:active {
-            transform: scale(0.95);
-        }
-
-        .hidden {
-            display: none !important;
-        }
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Pretendard', sans-serif; touch-action: none; }
+        canvas { display: block; image-rendering: pixelated; background: #000; }
         
-        /* 모바일 안내 문구 */
-        .controls-hint {
-            font-size: 14px;
-            color: #888;
-            margin-top: 10px;
-        }
+        /* UI 스타일링 */
+        #ui-layer, .modal-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; color: white; }
+        .modal-layer { background: rgba(0, 0, 0, 0.9); display: none; flex-direction: column; align-items: center; justify-content: center; pointer-events: auto; z-index: 100; }
+        
+        .pixel-box { background: #001a33; border: 4px double #00d4ff; padding: 24px; width: 90%; max-width: 480px; box-shadow: 0 0 20px rgba(0, 212, 255, 0.3); }
+        .pixel-button { background: #004466; border: 2px solid #00d4ff; padding: 12px; width: 100%; text-align: left; margin-bottom: 12px; font-size: 14px; cursor: pointer; color: white; transition: all 0.2s; }
+        .pixel-button:hover:not(:disabled) { background: #006699; transform: translateX(5px); }
+        .pixel-button:disabled { opacity: 0.4; cursor: not-allowed; }
+        
+        .gauge-label { font-size: 9px; font-weight: bold; width: 40px; color: #00d4ff; font-family: 'Orbitron', sans-serif; }
+        .bar-container { width: 120px; height: 10px; background: rgba(255, 255, 255, 0.1); border: 1px solid #333; position: relative; }
+        .bar-fill { height: 100%; transition: width 0.3s ease-out; }
+        
+        #minimap-container { width: 120px; height: 120px; background: rgba(0, 10, 20, 0.9); border: 3px solid #00d4ff; position: relative; border-radius: 50%; overflow: hidden; box-shadow: 0 0 15px #00d4ff; }
+        
+        #interior-hint { position: absolute; top: 30px; left: 50%; transform: translateX(-50%); background: rgba(0, 212, 255, 0.15); padding: 12px 24px; border: 1px solid #00d4ff; font-size: 13px; pointer-events: none; display: none; z-index: 90; font-weight: bold; letter-spacing: 1px; }
+
+        /* 알림 메시지 */
+        #msg-box { position: absolute; bottom: 160px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: #00d4ff; padding: 10px 25px; border: 1px solid #00d4ff; font-size: 13px; display: none; z-index: 200; border-radius: 4px; pointer-events: none; }
     </style>
 </head>
 <body>
 
-    <!-- 게임 캔버스 -->
     <canvas id="gameCanvas"></canvas>
+    <div id="interior-hint">COMMAND CENTER ACTIVE - PRESS [P] TO EXIT</div>
+    <div id="msg-box">메시지</div>
 
-    <!-- UI 레이어 -->
-    <div id="uiLayer">
-        <div class="score-board">점수: <span id="scoreEl">0</span></div>
+    <!-- 시설 관리창 -->
+    <div id="base-modal" class="modal-layer">
+        <div class="pixel-box">
+            <h2 id="modal-title" class="text-2xl font-bold mb-4 text-cyan-400 font-mono tracking-widest">FACILITY</h2>
+            <div id="modal-content" class="text-sm mb-6 space-y-4 max-h-[350px] overflow-y-auto pr-2"></div>
+            <button onclick="window.closeUI()" class="w-full py-3 bg-red-900/80 border-2 border-white font-bold hover:bg-red-800 transition-colors uppercase">Close [ESC]</button>
+        </div>
     </div>
 
-    <!-- 시작/게임오버 화면 -->
-    <div id="modal">
-        <h1 id="modalTitle">스페이스 디펜더</h1>
-        <p id="modalDesc">
-            지구를 향해 날아오는 적들을 막아내세요!<br>
-            <span class="controls-hint">PC: 마우스 이동 / 클릭하여 발사<br>모바일: 터치 드래그 / 탭하여 발사</span>
-        </p>
-        <h2 id="finalScore" class="hidden" style="color: white; margin-bottom: 20px;">0점</h2>
-        <button id="startBtn">게임 시작</button>
+    <!-- HUD 레이어 -->
+    <div id="ui-layer">
+        <div class="flex justify-between items-start p-6">
+            <div class="flex flex-col gap-6">
+                <div id="minimap-container"><canvas id="minimapCanvas" width="120" height="120"></canvas></div>
+                <div id="stat-gauges" class="bg-black/60 p-3 border border-white/10 rounded backdrop-blur-sm">
+                    <div class="flex items-center gap-2">
+                        <span class="gauge-label">OXY</span>
+                        <div class="bar-container"><div id="ox-bar" class="bar-fill bg-blue-500"></div></div>
+                    </div>
+                    <div class="flex items-center gap-2 mt-2">
+                        <span class="gauge-label">PWR</span>
+                        <div class="bar-container"><div id="bat-bar" class="bar-fill bg-yellow-500"></div></div>
+                    </div>
+                </div>
+            </div>
+            <div class="text-right space-y-2">
+                <div id="relic-ui" class="text-2xl font-bold text-cyan-400 drop-shadow-lg">Relics: 0</div>
+                <div id="bio-ui" class="text-md font-bold text-green-400">Data: 0</div>
+                <div id="depth-ui" class="text-xs font-mono text-gray-400 uppercase tracking-widest">Depth: 0M</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 사망 시 안내 -->
+    <div id="status-modal" class="modal-layer">
+        <div class="pixel-box text-center">
+            <h2 class="text-3xl font-bold mb-3 text-red-500 font-mono">CONNECTION LOST</h2>
+            <p class="text-sm mb-8 text-gray-400">심해의 압력이 선체를 파괴했습니다.</p>
+            <button onclick="location.reload()" class="w-full py-4 bg-cyan-700 hover:bg-cyan-600 text-white font-bold uppercase transition-all">재접속 시도</button>
+        </div>
     </div>
 
 <script>
-    const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
+    /**
+     * AQUA RESURGENCE - 핵심 엔진 최적화 버전
+     */
     
-    const scoreEl = document.getElementById('scoreEl');
-    const modal = document.getElementById('modal');
-    const startBtn = document.getElementById('startBtn');
-    const modalTitle = document.getElementById('modalTitle');
-    const modalDesc = document.getElementById('modalDesc');
-    const finalScoreEl = document.getElementById('finalScore');
+    // --- 1. 글로벌 설정 ---
+    const CONFIG = {
+        world: { width: 8000, height: 60000 },
+        seaLevel: 800,
+        pixelSize: 4,
+        id: "1EzD_xHf3dWXXiIfnH89p4ymOabzC6kZD" // 캐릭터 이미지 ID
+    };
 
-    // 게임 상태 변수
-    let animationId;
-    let score = 0;
-    let gameActive = false;
-    let frame = 0;
+    // --- 2. 게임 상태 관리 ---
+    const STATE = {
+        player: {
+            x: 4000, y: 780, vx: 0, vy: 0, angle: 0,
+            relics: 0, bioData: 0, oxygen: 100, battery: 100, maxOxygen: 100,
+            onBoard: false, viewMode: 'external', zoom: 2.0, targetZoom: 2.0,
+            facing: 1, isFiring: false
+        },
+        subPos: { x: 4000, y: 810 },
+        upgrades: { weapon: 1, gear: 1, engine: 1, tank: 1 },
+        objects: { relics: [], fishes: [], terrains: [], airPockets: [], projectiles: [] }
+    };
 
-    // 캔버스 크기 설정
-    function resizeCanvas() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
+    const FACILITIES = [
+        { id: 'weapon', name: '공격 전술실', color: '#ff4444', desc: '심해 생물 대응용 무기 시스템을 강화합니다.' },
+        { id: 'gear', name: '환경 적응실', color: '#44ff44', desc: '잠수복의 내압 및 산소 보존 기술을 연구합니다.' },
+        { id: 'storage', name: '중앙 창고', color: '#ffff44', desc: '현재 수집한 유물과 데이터를 확인합니다.' },
+        { id: 'maintenance', name: '기계 정비실', color: '#ff44ff', desc: '잠수정의 추진 엔진과 전력 효율을 개선합니다.' }
+    ];
+
+    let canvas, ctx, miniCanvas, miniCtx, lastTime = 0;
+    const keys = {};
+    const assets = { player: new Image(), loaded: false };
+
+    // --- 3. 시스템 함수 (전역 바인딩) ---
+    window.closeUI = () => { document.getElementById('base-modal').style.display = 'none'; };
+
+    window.showMsg = (txt) => {
+        const b = document.getElementById('msg-box');
+        b.innerText = txt; b.style.display = 'block';
+        setTimeout(() => b.style.display = 'none', 2000);
+    };
+
+    window.openUI = (f) => {
+        initAudio(); playSFX(600, 'sine', 0.1);
+        const m = document.getElementById('base-modal');
+        m.style.display = 'flex';
+        document.getElementById('modal-title').innerText = f.name;
+        
+        let currentLv = STATE.upgrades[f.id === 'maintenance' ? 'engine' : f.id] || 1;
+        let html = `<p class='text-gray-400 text-xs italic mb-4'>${f.desc}</p>`;
+        
+        if(f.id === 'storage') {
+            html += `<div class='grid grid-cols-2 gap-2 text-cyan-300 font-mono'>
+                        <div class='bg-black/40 p-3 border border-cyan-900/50'>Relics: ${STATE.player.relics}</div>
+                        <div class='bg-black/40 p-3 border border-cyan-900/50'>Data: ${STATE.player.bioData}</div>
+                     </div>`;
+        } else {
+            html += `<div class='text-xs text-yellow-400 mb-2'>현재 기술 등급: Lv.${currentLv}</div>`;
+            html += `<button class='pixel-button' onclick="window.processUpgrade('${f.id}')" ${STATE.player.relics < 3 ? 'disabled' : ''}>등급 업그레이드 (유물 3개 소모)</button>`;
+        }
+        document.getElementById('modal-content').innerHTML = html;
+    };
+
+    window.processUpgrade = (id) => {
+        if (STATE.player.relics >= 3) {
+            STATE.player.relics -= 3;
+            const key = id === 'maintenance' ? 'engine' : id;
+            STATE.upgrades[key]++;
+            if (id === 'gear') STATE.player.maxOxygen += 25;
+            playSFX(1000, 'square', 0.2);
+            window.showMsg('기술 업그레이드 완료');
+            window.openUI(FACILITIES.find(f => f.id === id));
+        }
+    };
+
+    // --- 4. 오디오 시스템 ---
+    let audioCtx = null;
+    function initAudio() { if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    function playSFX(f, t, d, v = 0.05) {
+        if(!audioCtx) return;
+        try {
+            const o = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            o.type = t; o.frequency.setValueAtTime(f, audioCtx.currentTime);
+            g.gain.setValueAtTime(v, audioCtx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + d);
+            o.connect(g); g.connect(audioCtx.destination);
+            o.start(); o.stop(audioCtx.currentTime + d);
+        } catch(e) {}
     }
-    window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
 
-    // 마우스/터치 위치 추적
-    const mouse = { x: canvas.width / 2, y: canvas.height / 2 };
+    // --- 5. 게임 엔진 로직 ---
+    function checkVisibility(tx, ty) {
+        if (STATE.player.y <= CONFIG.seaLevel + 100) return true;
+        const dx = tx - STATE.player.x, dy = ty - STATE.player.y;
+        const dSq = dx*dx + dy*dy;
+        if (dSq < 25600) return true; // 주변광 (160px)
+        if (STATE.player.onBoard) {
+            if (dSq < 400000) { // 서치라이트 범위 (630px)
+                const angleTo = Math.atan2(dy, dx);
+                let diff = Math.abs(angleTo - STATE.player.angle);
+                if (diff > Math.PI) diff = Math.PI * 2 - diff;
+                if (diff < 0.8) return true;
+            }
+        }
+        return false;
+    }
 
-    // --- 클래스 정의 ---
+    function interact() {
+        initAudio();
+        const distToSub = Math.sqrt((STATE.player.x - STATE.subPos.x)**2 + (STATE.player.y - STATE.subPos.y)**2);
+        if(!STATE.player.onBoard && distToSub < 150) {
+            STATE.player.onBoard = true; STATE.player.targetZoom = 1.3; playSFX(400, 'square', 0.1);
+            window.showMsg('잠수정 제어권 획득');
+        } else if(STATE.player.onBoard && STATE.player.y < CONFIG.seaLevel + 150) {
+            if(STATE.player.viewMode === 'interior') return;
+            STATE.player.onBoard = false; STATE.player.targetZoom = 2.0; 
+            STATE.subPos.x = STATE.player.x; STATE.subPos.y = STATE.player.y;
+            playSFX(200, 'square', 0.1);
+            window.showMsg('탐사 슈트 전환');
+        }
+    }
 
-    // 플레이어(우주선)
-    class Player {
-        constructor(x, y, radius, color) {
-            this.x = x;
-            this.y = y;
-            this.radius = radius;
-            this.color = color;
+    function toggleView() {
+        if(!STATE.player.onBoard) return;
+        initAudio(); playSFX(300, 'sine', 0.2);
+        STATE.player.viewMode = STATE.player.viewMode === 'external' ? 'interior' : 'external';
+        document.getElementById('interior-hint').style.display = STATE.player.viewMode === 'interior' ? 'block' : 'none';
+        document.getElementById('stat-gauges').style.opacity = STATE.player.viewMode === 'interior' ? '0' : '1';
+    }
+
+    function fire() {
+        if(STATE.player.viewMode === 'interior') return;
+        const speed = 28;
+        const vx = STATE.player.onBoard ? Math.cos(STATE.player.angle)*speed : STATE.player.facing*speed;
+        const vy = STATE.player.onBoard ? Math.sin(STATE.player.angle)*speed : 0;
+        STATE.objects.projectiles.push({ x: STATE.player.x, y: STATE.player.y, vx, vy, life: 65 });
+        playSFX(800, 'square', 0.05);
+    }
+
+    function generateWorld() {
+        const obj = STATE.objects;
+        for(let i=0; i<300; i++) obj.relics.push({ x: Math.random()*CONFIG.world.width, y: CONFIG.seaLevel + 500 + Math.random()*58000, collected: false });
+        for(let i=0; i<180; i++) obj.fishes.push({ x: Math.random()*CONFIG.world.width, y: CONFIG.seaLevel + 400 + Math.random()*58000, vx: (Math.random()-0.5)*5, vy: (Math.random()-0.5)*3, color: '#0ff', hp: 30, isDead: false });
+        for(let i=0; i<450; i++) obj.terrains.push({ x: Math.random()*CONFIG.world.width, y: CONFIG.seaLevel + 1000 + Math.random()*58000, r: 40 + Math.random()*160 });
+    }
+
+    // --- 6. 엔진 사이클 ---
+    function update(dt) {
+        if(document.getElementById('base-modal').style.display === 'flex') return;
+        const p = STATE.player;
+        p.zoom += (p.targetZoom - p.zoom) * 0.08;
+
+        if(p.viewMode === 'external') {
+            let dx = 0, dy = 0;
+            if(keys['ArrowUp'] || keys['KeyW']) dy -= 1;
+            if(keys['ArrowDown'] || keys['KeyS']) dy += 1;
+            if(keys['ArrowLeft'] || keys['KeyA']) dx -= 1;
+            if(keys['ArrowRight'] || keys['KeyD']) dx += 1;
+
+            if(dx !== 0 || dy !== 0) {
+                const spd = p.onBoard ? (7 + STATE.upgrades.engine*0.8) : 5;
+                p.vx = dx * spd;
+                if(p.onBoard) p.vy = dy * spd;
+                p.angle = Math.atan2(dy, dx);
+                if(dx !== 0) p.facing = dx > 0 ? 1 : -1;
+            } else {
+                p.vx *= 0.85; p.vy *= 0.85;
+            }
         }
 
-        draw() {
-            ctx.beginPath();
-            // 삼각형 우주선 그리기
-            ctx.moveTo(this.x, this.y - this.radius);
-            ctx.lineTo(this.x - this.radius, this.y + this.radius);
-            ctx.lineTo(this.x, this.y + this.radius * 0.7); // 엔진 부분 오목하게
-            ctx.lineTo(this.x + this.radius, this.y + this.radius);
-            ctx.closePath();
-            ctx.fillStyle = this.color;
-            ctx.fill();
+        if(!p.onBoard) {
+            p.x = Math.max(STATE.subPos.x - 250, Math.min(STATE.subPos.x + 250, p.x + p.vx));
+            p.y = CONFIG.seaLevel - 20;
+            p.oxygen = Math.min(100, p.oxygen + 1.2);
+        } else {
+            if(p.y + p.vy < CONFIG.seaLevel + 50) { p.vy = 0; p.y = CONFIG.seaLevel + 50; }
+            p.x += p.vx; p.y += p.vy;
+            p.oxygen -= (0.012 - (STATE.upgrades.gear * 0.0012));
+        }
+
+        // 월드 경계 제한
+        p.x = Math.max(0, Math.min(CONFIG.world.width, p.x));
+        p.y = Math.max(0, Math.min(CONFIG.world.height, p.y));
+
+        // 충돌 및 수집 처리
+        const obj = STATE.objects;
+        obj.relics.forEach(r => { if(!r.collected && Math.abs(p.x-r.x)<60 && Math.abs(p.y-r.y)<60) { r.collected = true; p.relics++; playSFX(1200, 'square', 0.1); }});
+        obj.fishes.forEach(f => {
+            if(!f.isDead) {
+                f.x += f.vx; f.y += f.vy;
+                if(f.x < 0 || f.x > CONFIG.world.width) f.vx *= -1;
+                obj.projectiles.forEach(pr => { if(Math.abs(f.x-pr.x)<50 && Math.abs(f.y-pr.y)<50) { f.hp -= (10 * STATE.upgrades.weapon); pr.life = 0; if(f.hp <= 0) { f.isDead = true; p.bioData++; playSFX(400, 'sawtooth', 0.2); } }});
+            } else { f.y += 2.5; }
+        });
+
+        obj.projectiles.forEach((pr, i) => { pr.x += pr.vx; pr.y += pr.vy; pr.life--; if(pr.life <= 0) obj.projectiles.splice(i, 1); });
+        
+        if(p.oxygen <= 0) document.getElementById('status-modal').style.display = 'flex';
+
+        updateUI();
+    }
+
+    function updateUI() {
+        const p = STATE.player;
+        document.getElementById('ox-bar').style.width = p.oxygen + '%';
+        document.getElementById('bat-bar').style.width = p.battery + '%';
+        document.getElementById('relic-ui').innerText = `Relics: ${p.relics}`;
+        document.getElementById('bio-ui').innerText = `Data: ${p.bioData}`;
+        document.getElementById('depth-ui').innerText = p.y > CONFIG.seaLevel ? `Depth: ${Math.floor((p.y - CONFIG.seaLevel)/5)}M` : 'Surface';
+        
+        const dist = Math.sqrt((p.x - STATE.subPos.x)**2 + (p.y - STATE.subPos.y)**2);
+        document.getElementById('action-btn').style.display = (p.viewMode === 'external' && dist < 160) ? 'flex' : 'none';
+        
+        drawRadar();
+    }
+
+    // --- 7. 렌더링 로직 ---
+    function draw() {
+        ctx.fillStyle = "#000"; ctx.fillRect(0,0,width,height);
+        const p = STATE.player;
+        if(p.viewMode === 'external') {
+            ctx.save();
+            ctx.translate(width/2, height/2);
+            ctx.scale(p.zoom, p.zoom);
+            ctx.translate(-p.x, -p.y);
+
+            // 심해 배경 그라데이션
+            const grad = ctx.createLinearGradient(0, CONFIG.seaLevel, 0, CONFIG.world.height);
+            grad.addColorStop(0, '#001a33'); grad.addColorStop(0.5, '#000810'); grad.addColorStop(1, '#000');
+            ctx.fillStyle = grad; ctx.fillRect(-1000, CONFIG.seaLevel, CONFIG.world.width+2000, CONFIG.world.height);
+            ctx.fillStyle = "#05050a"; ctx.fillRect(-1000, -1000, CONFIG.world.width+2000, CONFIG.seaLevel+1000);
+
+            // 오브젝트 렌더링 (Culling: 화면 근처만 그리기)
+            const obj = STATE.objects;
+            const viewDist = 1200;
+            obj.terrains.forEach(t => { if(Math.abs(p.x-t.x)<viewDist && Math.abs(p.y-t.y)<viewDist) { ctx.fillStyle = "#1a1a1a"; ctx.beginPath(); ctx.arc(t.x, t.y, t.r, 0, Math.PI*2); ctx.fill(); }});
+            obj.relics.forEach(r => { if(!r.collected && checkVisibility(r.x, r.y)) { ctx.fillStyle = "#ff0"; ctx.fillRect(r.x-5, r.y-5, 10, 10); }});
+            obj.fishes.forEach(f => { if(!f.isDead && checkVisibility(f.x, f.y)) { ctx.fillStyle = f.color; ctx.fillRect(f.x-10, f.y-5, 20, 10); }});
             
-            // 엔진 불꽃 효과 (단순화)
-            ctx.beginPath();
-            ctx.moveTo(this.x - this.radius * 0.5, this.y + this.radius * 0.8);
-            ctx.lineTo(this.x, this.y + this.radius * 1.5 + Math.random() * 5);
-            ctx.lineTo(this.x + this.radius * 0.5, this.y + this.radius * 0.8);
-            ctx.fillStyle = 'orange';
-            ctx.fill();
-        }
-
-        update() {
-            // 부드러운 움직임 (Lerp)
-            // 목표 지점(마우스)으로 10%씩 이동
-            this.x += (mouse.x - this.x) * 0.1;
+            if(!p.onBoard) { ctx.fillStyle = "#00d4ff"; ctx.fillRect(STATE.subPos.x-35, STATE.subPos.y-18, 70, 36); }
             
-            // 화면 밖으로 나가지 않게 제한
-            if (this.x < this.radius) this.x = this.radius;
-            if (this.x > canvas.width - this.radius) this.x = canvas.width - this.radius;
+            ctx.save(); ctx.translate(p.x, p.y);
+            if(p.onBoard) {
+                ctx.rotate(p.angle); ctx.fillStyle = "#00d4ff"; ctx.fillRect(-20, -12, 40, 24);
+                ctx.fillStyle = "white"; ctx.fillRect(14, -3, 6, 6); // 조종석 창
+            } else {
+                ctx.scale(p.facing, 1);
+                if (assets.loaded) { ctx.drawImage(assets.player, -18, -24, 36, 48); }
+                else { ctx.fillStyle = "#fff"; ctx.fillRect(-10, -20, 20, 40); }
+            }
+            ctx.restore();
 
-            this.draw();
+            obj.projectiles.forEach(pr => { ctx.fillStyle = "#fff"; ctx.fillRect(pr.x, pr.y, 5, 5); });
+            ctx.restore();
+
+            // 안개 효과 (다크 마스킹)
+            if(p.y > CONFIG.seaLevel) {
+                const m = document.createElement('canvas'); m.width = width; m.height = height; const mc = m.getContext('2d');
+                mc.fillStyle = "rgba(0,0,0,0.96)"; mc.fillRect(0,0,width,height);
+                mc.globalCompositeOperation = "destination-out";
+                const rad = 300 * p.zoom;
+                const g = mc.createRadialGradient(width/2, height/2, 40, width/2, height/2, rad);
+                g.addColorStop(0, "white"); g.addColorStop(1, "transparent");
+                mc.fillStyle = g; mc.beginPath(); mc.arc(width/2, height/2, rad, 0, Math.PI*2); mc.fill();
+                ctx.drawImage(m, 0, 0);
+            }
+
+            // 최상단 수심 표시선
+            ctx.save(); ctx.translate(width/2, height/2); ctx.scale(p.zoom, p.zoom); ctx.translate(-p.x, -p.y);
+            for(let d=200; d<CONFIG.world.height; d+=200) {
+                const ly = CONFIG.seaLevel + d*5;
+                if(Math.abs(p.y - ly) < 1000) {
+                    ctx.strokeStyle = "rgba(0, 212, 255, 0.4)"; ctx.setLineDash([12, 12]);
+                    ctx.beginPath(); ctx.moveTo(0, ly); ctx.lineTo(CONFIG.world.width, ly); ctx.stroke();
+                    ctx.setLineDash([]); ctx.fillStyle = "#00d4ff"; ctx.font = "bold 12px Orbitron";
+                    ctx.fillText(`${d}M`, 30, ly - 8);
+                }
+            }
+            ctx.restore();
+        } else {
+            drawInterior();
         }
     }
 
-    // 총알
-    class Projectile {
-        constructor(x, y, radius, color, velocity) {
-            this.x = x;
-            this.y = y;
-            this.radius = radius;
-            this.color = color;
-            this.velocity = velocity;
-        }
-
-        draw() {
-            ctx.beginPath();
-            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2, false);
-            ctx.fillStyle = this.color;
-            ctx.fill();
-        }
-
-        update() {
-            this.x += this.velocity.x;
-            this.y += this.velocity.y;
-            this.draw();
-        }
+    function drawInterior() {
+        ctx.fillStyle = "#001a33"; ctx.fillRect(0,0,width,height);
+        ctx.strokeStyle = "#00d4ff"; ctx.lineWidth = 12; ctx.strokeRect(15, 15, width-30, height-30);
+        const mw = width * 0.16, mh = height * 0.45, sp = (width * 0.75) / 5;
+        FACILITIES.forEach((f, i) => {
+            const mx = width * 0.1 + i * sp, my = height * 0.28;
+            ctx.fillStyle = "#000"; ctx.fillRect(mx, my, mw, mh);
+            ctx.strokeStyle = f.color; ctx.lineWidth = 3; ctx.strokeRect(mx, my, mw, mh);
+            ctx.fillStyle = f.color; ctx.font = "bold 14px Orbitron"; ctx.textAlign = "center";
+            ctx.fillText(f.id.toUpperCase(), mx + mw/2, my + 40);
+            ctx.fillStyle = "white"; ctx.font = "10px Orbitron";
+            ctx.fillText("SYSTEM ONLINE", mx + mw/2, my + mh - 30);
+            ctx.fillStyle = "rgba(255,255,255,0.8)"; ctx.fillText("[ CLICK ]", mx + mw/2, my + mh/2);
+        });
+        ctx.fillStyle = "#00d4ff"; ctx.font = "bold 24px Orbitron"; ctx.textAlign = "center";
+        ctx.fillText("SUBMARINE CONTROL UNIT", width/2, 90);
     }
 
-    // 적
-    class Enemy {
-        constructor(x, y, radius, color, velocity) {
+    function drawRadar() {
+        miniCtx.clearRect(0,0,120,120);
+        miniCtx.save(); miniCtx.beginPath(); miniCtx.arc(60,60,60,0,Math.PI*2); miniCtx.clip();
+        miniCtx.fillStyle = "#000d1a"; miniCtx.fillRect(0,0,120,120);
+        const p = STATE.player; const ms = 0.045;
+        const relY = 60 + (CONFIG.seaLevel - p.y) * ms;
+        miniCtx.fillStyle = "#1a1a1a"; miniCtx.fillRect(0, 0, 120, relY);
+        STATE.objects.relics.forEach(r => { if(!r.collected) { const rx = 60 + (r.x - p.x) * ms; const ry = 60 + (r.y - p.y) * ms; miniCtx.fillStyle = "#ff0"; miniCtx.fillRect(rx-1.5, ry-1.5, 3, 3); }});
+        miniCtx.fillStyle = p.onBoard ? "#0df" : "#fff";
+        miniCtx.beginPath(); miniCtx.arc(60, 60, 4, 0, Math.PI * 2); miniCtx.fill();
+        miniCtx.restore();
+    }
+
+    function resize() { width = window.innerWidth; height = window.innerHeight; canvas.width = width; canvas.height = height; }
+    function loop(time) { const dt = time - lastTime; lastTime = time; update(dt); draw(); requestAnimationFrame(loop); }
+
+    // --- 8. 시작 ---
+    window.onload = () => {
+        canvas = document.getElementById('gameCanvas'); ctx = canvas.getContext('2d');
+        miniCanvas = document.getElementById('minimapCanvas'); miniCtx = miniCanvas.getContext('2d');
+        window.addEventListener('resize', resize);
+        window.addEventListener('keydown', e => { keys[e.code] = true; if(e.code === 'KeyP') toggleView(); if(e.code === 'KeyF') interact(); if(e.code === 'Backslash' || e.key === '\\') fire(); });
+        window.addEventListener('keyup', e => { keys[e.code] = false; });
+        generateWorld(); resize();
+        if (CONFIG.id) { assets.player.crossOrigin = "anonymous"; assets.player.src = `https://drive.google.com/uc?export=view&id=${CONFIG.id}`; assets.player.onload = () => { assets.loaded = true; }; }
+        requestAnimationFrame(loop);
+    };
+</script>
+</body>
+</html>
